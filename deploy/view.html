@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>阅后即焚消息</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+        
+        .header {
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: #333;
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+        
+        .timer {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #ff6b6b;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .content-box {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 30px;
+            margin: 20px 0;
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px dashed #dee2e6;
+        }
+        
+        .content {
+            font-size: 18px;
+            line-height: 1.6;
+            color: #333;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        
+        .destroyed {
+            font-size: 24px;
+            color: #ff6b6b;
+            font-weight: bold;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #856404;
+        }
+        
+        .info {
+            color: #666;
+            font-size: 14px;
+            margin-top: 20px;
+        }
+        
+        .btn {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover {
+            background: #ff5252;
+            transform: translateY(-2px);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .loading {
+            color: #666;
+            font-size: 18px;
+        }
+        
+        .error {
+            color: #dc3545;
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        
+        /* 防截图保护 */
+        .no-select {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+        
+        .no-copy {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+            
+            .timer {
+                font-size: 2.5rem;
+            }
+            
+            .content {
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body class="no-select no-copy" oncontextmenu="return false;">
+    <div class="container">
+        <div class="header">
+            <h1>🔥 阅后即焚消息</h1>
+            <p>此消息将在阅读10秒后自动销毁</p>
+        </div>
+        
+        <div class="timer" id="timer">10</div>
+        
+        <div class="warning">
+            ⚠️ 请注意：此消息只能查看一次，10秒后将被永久销毁
+        </div>
+        
+        <div class="content-box">
+            <div class="content" id="content">
+                <div class="loading" id="loading">正在加载消息内容...</div>
+            </div>
+        </div>
+        
+        <div class="error" id="error" style="display: none;"></div>
+        
+        <button class="btn" id="destroyBtn" onclick="manualDestroy()" style="display: none;">
+            立即销毁
+        </button>
+        
+        <div class="info">
+            <p>💡 消息销毁后无法恢复，请确保已阅读完毕</p>
+            <p>👁️ 查看次数: <span id="viewCount">0</span></p>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api';
+        let countdownTimer = null;
+        let destroyTimer = null;
+        let contentId = null;
+        let timeLeft = 10;
+
+        // 页面加载时获取内容
+        window.addEventListener('load', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            contentId = urlParams.get('id');
+            
+            if (!contentId) {
+                showError('无效的消息链接');
+                return;
+            }
+            
+            loadContent();
+        });
+
+        // 监听页面可见性变化
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                // 页面不可见时暂停计时
+                if (countdownTimer) {
+                    clearInterval(countdownTimer);
+                }
+                if (destroyTimer) {
+                    clearTimeout(destroyTimer);
+                }
+            } else {
+                // 页面重新可见时继续计时
+                if (timeLeft > 0) {
+                    startTimers();
+                }
+            }
+        });
+
+        // 加载内容
+        async function loadContent() {
+            try {
+                const response = await fetch(`${API_BASE}/content/${contentId}`);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    if (response.status === 410) {
+                        showDestroyedState('此消息已被销毁');
+                    } else {
+                        throw new Error(data.error || '加载失败');
+                    }
+                    return;
+                }
+                
+                // 显示内容
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('content').innerHTML = `<div>${escapeHtml(data.content)}</div>`;
+                document.getElementById('viewCount').textContent = data.viewCount;
+                
+                timeLeft = Math.min(data.timeLeft, 10); // 最多10秒
+                startTimers();
+                
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        // 启动计时器
+        function startTimers() {
+            // 更新倒计时显示
+            updateTimerDisplay();
+            
+            // 倒计时计时器
+            countdownTimer = setInterval(() => {
+                timeLeft--;
+                updateTimerDisplay();
+                
+                if (timeLeft <= 0) {
+                    clearInterval(countdownTimer);
+                    destroyContent();
+                }
+            }, 1000);
+            
+            // 10秒后自动销毁
+            destroyTimer = setTimeout(() => {
+                destroyContent();
+            }, timeLeft * 1000);
+            
+            // 显示销毁按钮
+            document.getElementById('destroyBtn').style.display = 'block';
+        }
+
+        // 更新计时器显示
+        function updateTimerDisplay() {
+            const timerElement = document.getElementById('timer');
+            timerElement.textContent = timeLeft;
+            
+            // 颜色变化
+            if (timeLeft <= 3) {
+                timerElement.style.color = '#ff0000';
+                timerElement.style.transform = 'scale(1.1)';
+            } else if (timeLeft <= 5) {
+                timerElement.style.color = '#ff6b6b';
+            }
+        }
+
+        // 销毁内容
+        async function destroyContent() {
+            try {
+                // 向后端发送销毁请求
+                await fetch(`${API_BASE}/content/${contentId}/destroy`, {
+                    method: 'POST'
+                });
+                
+                showDestroyedState('消息已销毁');
+                
+            } catch (error) {
+                console.error('销毁失败:', error);
+                showDestroyedState('消息已销毁');
+            }
+        }
+
+        // 手动销毁
+        function manualDestroy() {
+            if (confirm('确定要立即销毁此消息吗？此操作不可撤销。')) {
+                if (countdownTimer) clearInterval(countdownTimer);
+                if (destroyTimer) clearTimeout(destroyTimer);
+                destroyContent();
+            }
+        }
+
+        // 显示销毁状态
+        function showDestroyedState(message) {
+            document.getElementById('timer').textContent = '0';
+            document.getElementById('timer').style.color = '#ff0000';
+            document.getElementById('content').innerHTML = 
+                `<div class="destroyed">${message}</div>`;
+            document.getElementById('destroyBtn').style.display = 'none';
+            
+            // 清除计时器
+            if (countdownTimer) clearInterval(countdownTimer);
+            if (destroyTimer) clearTimeout(destroyTimer);
+        }
+
+        // 显示错误
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error').textContent = message;
+        }
+
+        // HTML转义
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 防止右键菜单
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            return false;
+        });
+
+        // 防止文本选择
+        document.addEventListener('selectstart', function(e) {
+            e.preventDefault();
+            return false;
+        });
+
+        // 防止拖拽
+        document.addEventListener('dragstart', function(e) {
+            e.preventDefault();
+            return false;
+        });
+    </script>
+</body>
+</html>
