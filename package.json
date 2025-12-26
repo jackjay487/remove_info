@@ -1,0 +1,23 @@
+{
+  "name": "burn-after-reading",
+  "version": "1.0.0",
+  "description": "微信阅后即焚H5应用",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "start": "cd backend && npm start",
+    "start:production": "node start-production.js",
+    "pm2:start": "pm2 start ecosystem.config.js --env production",
+    "pm2:stop": "pm2 stop ecosystem.config.js",
+    "pm2:restart": "pm2 restart ecosystem.config.js",
+    "pm2:logs": "pm2 logs burn-after-reading",
+    "pm2:status": "pm2 status"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

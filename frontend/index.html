@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>阅后即焚 - 安全私密的消息传递</title>
+    <meta name="description" content="创建阅后即焚的消息，10秒后自动销毁，保护您的隐私安全">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .logo h1 {
+            color: #333;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        
+        .logo p {
+            color: #666;
+            font-size: 1.1rem;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .char-count {
+            text-align: right;
+            color: #999;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        
+        .char-count.warning {
+            color: #ff6b6b;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            display: none;
+        }
+        
+        .result.show {
+            display: block;
+        }
+        
+        .share-url {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            word-break: break-all;
+            margin: 15px 0;
+        }
+        
+        .copy-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        
+        .wechat-share {
+            background: #07c160;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #667eea;
+        }
+        
+        .error {
+            color: #ff6b6b;
+            text-align: center;
+            margin-top: 10px;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+            
+            .logo h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>🔥 阅后即焚</h1>
+            <p>安全私密的消息传递，10秒后自动销毁</p>
+        </div>
+        
+        <div class="form-group">
+            <textarea 
+                id="contentInput" 
+                placeholder="请输入您要发送的私密内容...（最多10000个字符）"
+                maxlength="10000"
+            ></textarea>
+            <div class="char-count" id="charCount">0/10000</div>
+        </div>
+        
+        <button class="btn" id="createBtn" onclick="createContent()">
+            创建阅后即焚链接
+        </button>
+        
+        <div class="loading" id="loading" style="display: none;">
+            正在创建链接...
+        </div>
+        
+        <div class="error" id="error"></div>
+        
+        <div class="result" id="result">
+            <h3>✅ 链接创建成功！</h3>
+            <p>复制下面的链接发送给朋友，对方阅读10秒后内容将自动销毁：</p>
+            
+            <div class="share-url" id="shareUrl"></div>
+            
+            <div>
+                <button class="copy-btn" onclick="copyToClipboard()">复制链接</button>
+                <button class="wechat-share" onclick="shareToWeChat()">微信分享</button>
+            </div>
+            
+            <p style="margin-top: 15px; font-size: 14px; color: #666;">
+                💡 提示：链接将在24小时后过期
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api';
+        let currentContentId = null;
+
+        // 字符计数
+        document.getElementById('contentInput').addEventListener('input', function() {
+            const count = this.value.length;
+            const charCount = document.getElementById('charCount');
+            charCount.textContent = `${count}/10000`;
+            
+            if (count > 9500) {
+                charCount.classList.add('warning');
+            } else {
+                charCount.classList.remove('warning');
+            }
+        });
+
+        // 创建内容
+        async function createContent() {
+            const content = document.getElementById('contentInput').value.trim();
+            const createBtn = document.getElementById('createBtn');
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const result = document.getElementById('result');
+            
+            if (!content) {
+                showError('请输入内容');
+                return;
+            }
+            
+            createBtn.disabled = true;
+            loading.style.display = 'block';
+            error.textContent = '';
+            result.classList.remove('show');
+            
+            try {
+                const response = await fetch(`${API_BASE}/content`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        content: content,
+                        expiresIn: 86400 // 24小时过期
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || '创建失败');
+                }
+                
+                currentContentId = data.id;
+                const shareUrl = `${window.location.origin}/view.html?id=${data.id}`;
+                
+                document.getElementById('shareUrl').textContent = shareUrl;
+                result.classList.add('show');
+                
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                createBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        // 复制到剪贴板
+        async function copyToClipboard() {
+            const shareUrl = document.getElementById('shareUrl').textContent;
+            
+            try {
+                await navigator.clipboard.writeText(shareUrl);
+                alert('链接已复制到剪贴板！');
+            } catch (err) {
+                // 降级方案
+                const textArea = document.createElement('textarea');
+                textArea.value = shareUrl;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                alert('链接已复制到剪贴板！');
+            }
+        }
+
+        // 微信分享
+        function shareToWeChat() {
+            const shareUrl = document.getElementById('shareUrl').textContent;
+            const title = '阅后即焚消息';
+            const desc = '我给您发送了一条阅后即焚消息，请尽快查看（10秒后自动销毁）';
+            
+            // 微信分享逻辑（需要配置微信JS-SDK）
+            if (window.WeixinJSBridge) {
+                window.WeixinJSBridge.invoke('shareTimeline', {
+                    title: title,
+                    link: shareUrl,
+                    imgUrl: window.location.origin + '/icon.png'
+                });
+            } else {
+                // 如果没有微信环境，提示用户手动分享
+                alert('请在微信中打开此页面使用分享功能，或手动复制链接发送给朋友');
+            }
+        }
+
+        // 显示错误信息
+        function showError(message) {
+            const error = document.getElementById('error');
+            error.textContent = message;
+        }
+
+        // 回车键创建
+        document.getElementById('contentInput').addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                createContent();
+            }
+        });
+    </script>
+</body>
+</html>
