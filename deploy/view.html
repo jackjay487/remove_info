@@ -168,7 +168,7 @@
         
         <div class="timer" id="timer">10</div>
         
-        <div class="warning">
+        <div class="warning" id="warning">
             ⚠️ 请注意：此消息只能查看一次，10秒后将被永久销毁
         </div>
         
@@ -246,9 +246,19 @@
                 // 显示内容
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('content').innerHTML = `<div>${escapeHtml(data.content)}</div>`;
-                document.getElementById('viewCount').textContent = data.viewCount;
+                document.getElementById('viewCount').textContent = data.view_count;
                 
-                timeLeft = Math.min(data.timeLeft, 10); // 最多10秒
+                // 计算剩余时间（最多10秒）
+                const expiresAt = new Date(data.expires_at || new Date(Date.now() + 10000));
+                const timeLeftSeconds = Math.max(0, Math.floor((expiresAt - new Date()) / 1000));
+                timeLeft = Math.min(timeLeftSeconds, 10);
+                
+                // 如果查看次数已达到最大值，显示警告但允许查看
+                if (data.view_count >= data.max_views) {
+                    document.getElementById('warning').innerHTML = 
+                        '⚠️ 此消息查看次数已达上限，但仍可查看10秒';
+                }
+                
                 startTimers();
                 
             } catch (error) {

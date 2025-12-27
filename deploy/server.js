@@ -37,7 +37,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // 静态文件服务（用于生产环境）
 if (isProduction) {
-  app.use(express.static(path.join(__dirname, '../frontend/dist')));
+  app.use(express.static(path.join(__dirname)));
 }
 
 // API路由
@@ -57,17 +57,26 @@ app.use((err, req, res, next) => {
   });
 });
 
-// SPA路由处理（生产环境）
-if (isProduction) {
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
-  });
-} else {
-  // 404处理（开发环境）
-  app.use('*', (req, res) => {
-    res.status(404).json({ error: 'Not Found' });
-  });
-}
+// 静态文件服务（提供前端页面）
+app.use(express.static(path.join(__dirname)));
+
+// 处理/view/{id}格式的URL
+app.get('/view/:id', (req, res) => {
+  const contentId = req.params.id;
+  // 重定向到view.html并传递id参数
+  res.redirect(`/view.html?id=${contentId}`);
+});
+
+// SPA路由处理
+app.get('*', (req, res) => {
+  // 如果是API请求，返回404
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'Not Found' });
+  }
+  
+  // 否则提供前端页面
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // 启动服务器
 async function startServer() {

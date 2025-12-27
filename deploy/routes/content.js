@@ -33,7 +33,7 @@ router.post('/', async (req, res) => {
       is_destroyed: false,
       destroy_time: null,
       view_count: 0,
-      max_views: 1
+      max_views: 2  // 允许查看2次（一次预览，一次正式查看）
     };
     
     contents.push(newContent);
@@ -42,7 +42,7 @@ router.post('/', async (req, res) => {
     res.json({
       id: contentId,
       message: '内容创建成功',
-      viewUrl: `/view/${contentId}`,
+      viewUrl: `/view.html?id=${contentId}`,
       expiresAt: expiresAt.toISOString()
     });
     
@@ -77,18 +77,15 @@ router.get('/:id', async (req, res) => {
       return res.status(410).json({ error: '内容已被销毁' });
     }
     
-    // 检查查看次数
-    if (content.view_count >= content.max_views) {
-      return res.status(410).json({ error: '内容查看次数已达上限' });
-    }
-    
     // 增加查看次数
     content.view_count += 1;
     
-    // 如果达到最大查看次数，标记为销毁
+    // 注意：这里不立即标记为销毁，由前端控制销毁时间
+    // 只有在查看次数达到上限时才标记为销毁，但允许用户查看内容
+    // 销毁由前端计时器控制
     if (content.view_count >= content.max_views) {
-      content.is_destroyed = true;
-      content.destroy_time = new Date().toISOString();
+      // 不立即标记为销毁，允许用户查看内容
+      // 销毁由前端计时器控制
     }
     
     writeContents(contents);
@@ -110,7 +107,9 @@ router.get('/:id', async (req, res) => {
       view_count: content.view_count,
       max_views: content.max_views,
       is_destroyed: content.is_destroyed,
-      destroy_time: content.destroy_time
+      destroy_time: content.destroy_time,
+      expires_at: content.expires_at,
+      created_at: content.created_at
     });
     
   } catch (error) {
