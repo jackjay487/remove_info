@@ -171,4 +171,29 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// POST方式销毁内容（前端调用）
+router.post('/:id/destroy', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const contents = readContents();
+    const contentIndex = contents.findIndex(c => c.id === id);
+    
+    if (contentIndex === -1) {
+      return res.status(404).json({ error: '内容不存在' });
+    }
+    
+    contents[contentIndex].is_destroyed = true;
+    contents[contentIndex].destroy_time = new Date().toISOString();
+    
+    writeContents(contents);
+    
+    res.json({ message: '内容已销毁' });
+    
+  } catch (error) {
+    console.error('销毁内容失败:', error);
+    res.status(500).json({ error: '销毁内容失败' });
+  }
+});
+
 export default router;

@@ -309,16 +309,57 @@
         async function destroyContent() {
             try {
                 // 向后端发送销毁请求
-                await fetch(`${API_BASE}/content/${contentId}/destroy`, {
+                const response = await fetch(`${API_BASE}/content/${contentId}/destroy`, {
                     method: 'POST'
                 });
                 
+                if (!response.ok) {
+                    throw new Error('销毁请求失败');
+                }
+                
+                // 销毁成功后，禁用页面刷新和重新加载
+                disablePageReload();
                 showDestroyedState('消息已销毁');
                 
             } catch (error) {
                 console.error('销毁失败:', error);
+                // 即使销毁请求失败，也要在本地标记为已销毁
+                disablePageReload();
                 showDestroyedState('消息已销毁');
             }
+        }
+        
+        // 禁用页面刷新和重新加载
+        function disablePageReload() {
+            // 阻止页面刷新
+            window.onbeforeunload = function() {
+                return '消息已销毁，无法重新查看。确定要离开吗？';
+            };
+            
+            // 阻止浏览器后退按钮
+            history.pushState(null, null, window.location.href);
+            window.addEventListener('popstate', function() {
+                history.pushState(null, null, window.location.href);
+            });
+            
+            // 阻止右键菜单和刷新快捷键
+            document.addEventListener('keydown', function(e) {
+                // 阻止F5刷新
+                if (e.key === 'F5') {
+                    e.preventDefault();
+                    return false;
+                }
+                // 阻止Ctrl+R刷新
+                if (e.ctrlKey && e.key === 'r') {
+                    e.preventDefault();
+                    return false;
+                }
+                // 阻止Ctrl+Shift+R强制刷新
+                if (e.ctrlKey && e.shiftKey && e.key === 'R') {
+                    e.preventDefault();
+                    return false;
+                }
+            });
         }
 
         // 手动销毁
